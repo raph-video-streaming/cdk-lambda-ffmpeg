@@ -16,11 +16,15 @@ def lambda_handler(event, context):
     
     # Convert string inputs to the object format expected by the ffmpeg function
     # Prepend UUID to input files
-    input_with_uuid = f"{s3_hostname}/{session_uuid}/{event['input_files']}"
-    output_with_uuid = f"{s3_hostname}/{session_uuid}/{event['output_files']}"
+    input_file=event["input_files"]
+    input_video_id = event["video_id"]
+    
+    input_with_uuid = f"{s3_hostname}/{input_video_id}/{event['input_files']}"
+    output_with_uuid = f"{s3_hostname}/ffmpeg/{input_video_id}/{event['output_files']}"
     
     payload = {
-        "input_files": {"input_files": input_with_uuid},
+        "input_files": input_file,
+        "video_id": input_video_id,
         "output_files": {"output_files": event["output_files"]},
         "ffmpeg_command": event["ffmpeg_command"]
     }
@@ -39,7 +43,7 @@ def lambda_handler(event, context):
                 'message': 'Step Function execution started successfully',
                 'executionArn': response['executionArn'],
                 'session_uuid': session_uuid,
-                'input_files': input_with_uuid,
+                'input_files': input_file,
                 'output_files': output_with_uuid
             })
         }

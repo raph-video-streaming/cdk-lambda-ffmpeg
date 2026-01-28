@@ -16,9 +16,12 @@ def lambda_handler(event, context):
         input_files = event.get('input_files', {})
         output_files = event.get('output_files', {})
         ffmpeg_command = event.get('ffmpeg_command', '')
+        video_id = event.get('video_id', '')
         
+    
         print(f"Received input_files: {input_files}")
         print(f"Received output_files: {output_files}")
+        print(f"Received video_id: {video_id}")
         print(f"Received ffmpeg_command: {ffmpeg_command}")
         
         if not input_files or not output_files or not ffmpeg_command:
@@ -27,15 +30,20 @@ def lambda_handler(event, context):
                 'body': 'Missing required fields: input_files, output_files, or ffmpeg_command'
             }
         
+        # Handle both string and dict formats for input_files
+        if isinstance(input_files, str):
+            input_files = {"input_files": input_files}
+        
         # Extract UUID from the first input file URL
         first_input_url = list(input_files.values())[0]
         parsed_url = urlparse(first_input_url)
         path_parts = parsed_url.path.strip('/').split('/')
         session_uuid = path_parts[0] if path_parts else str(uuid.uuid4())
         
-        session_folder = f"/tmp/{session_uuid}"
+        session_folder = f"/tmp/{video_id}"
+
         os.makedirs(session_folder, exist_ok=True)
-        print(f"Using session UUID: {session_uuid}")
+        print(f"Using video ID: {video_id}")
         print(f"Created session folder: {session_folder}")
         
         # Download input files to /tmp
@@ -79,7 +87,7 @@ def lambda_handler(event, context):
         output_urls = {}
         for key, local_path in local_outputs.items():
             if os.path.exists(local_path):
-                s3_key = f'ffmpeg/{session_uuid}/{output_files[key]}'
+                s3_key = f'ffmpeg/{video_id}/{output_files[key]}'
                 print(f"Uploading {local_path} to s3://{bucket_name}/{s3_key}")
                 s3_client.upload_file(local_path, bucket_name, s3_key)
                 output_urls[key] = f"{s3_hostname}/{s3_key}"
@@ -92,6 +100,7 @@ def lambda_handler(event, context):
             'body': {
                 'message': 'FFmpeg processing completed successfully',
                 'session_uuid': session_uuid,
+                'video_id': video_id,
                 'output_files': output_urls,
                 'ffmpeg_stdout': result.stdout
             }

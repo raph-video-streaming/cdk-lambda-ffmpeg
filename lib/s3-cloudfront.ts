@@ -146,6 +146,47 @@ export class s3CloudFront extends Construct {
           viewerProtocolPolicy:
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         },
+        additionalBehaviors: {
+          "*.mp4": {
+            origin: s3origin,
+            cachePolicy: videoCachePolicy,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            responseHeadersPolicy: new cloudfront.ResponseHeadersPolicy(this, "VideoResponseHeaders", {
+              customHeadersBehavior: {
+                customHeaders: [
+                  { header: "content-type", value: "video/mp4", override: true }
+                ]
+              }
+            })
+          },
+          "*.m3u8": {
+            origin: s3origin,
+            cachePolicy: videoCachePolicy,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            responseHeadersPolicy: new cloudfront.ResponseHeadersPolicy(this, "HLSResponseHeaders", {
+              customHeadersBehavior: {
+                customHeaders: [
+                  { header: "content-type", value: "application/vnd.apple.mpegurl", override: true }
+                ]
+              }
+            })
+          },
+          "*.aac": {
+            origin: s3origin,
+            cachePolicy: videoCachePolicy,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            responseHeadersPolicy: new cloudfront.ResponseHeadersPolicy(this, "AudioResponseHeaders", {
+              customHeadersBehavior: {
+                customHeaders: [
+                  { header: "content-type", value: "audio/aac", override: true }
+                ]
+              }
+            })
+          }
+        },
       }
     );
 
