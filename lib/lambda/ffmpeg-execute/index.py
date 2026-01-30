@@ -6,6 +6,24 @@ import urllib.request
 import uuid
 from urllib.parse import urlparse
 
+def execute_ffmpeg(cmd, context):
+    # Function Execute ffmpeg command
+    full_cmd = f"ffmpeg {cmd}"
+    print(f"Executing: {full_cmd}")
+    result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
+    
+    print(f"FFmpeg return code: {result.returncode}")
+    print(f"FFmpeg stdout: {result.stdout}")
+    if result.stderr:
+        print(f"FFmpeg stderr: {result.stderr}")
+    
+    if result.returncode != 0:
+        return {
+            'statusCode': 500,
+            'body': f'FFmpeg error: {result.stderr}'
+        }
+    return result.stdout
+
 def lambda_handler(event, context):
     bucket_name = os.environ.get('BUCKET_NAME')
     s3_hostname = os.environ.get('CLOUDFRONT_HOSTNAME')
@@ -34,7 +52,11 @@ def lambda_handler(event, context):
         if isinstance(input_files, str):
             input_files = {"input_files": input_files}
         
-        # Extract UUID from the first input file URL
+        # Handle string format for output_files
+        if isinstance(output_files, str):
+            output_files = {"output_files": output_files}
+        
+        # Extract UUID from the first input file URL (not required)
         first_input_url = list(input_files.values())[0]
         parsed_url = urlparse(first_input_url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -60,28 +82,23 @@ def lambda_handler(event, context):
         for key, filename in output_files.items():
             local_outputs[key] = f"{session_folder}/{filename}"
         
+        # Get the first input file for remuxing
+        first_input_path = list(local_inputs.values())[0]
+        
+        # First stage: remux input file
+        cmd_remux = f"-i {first_input_path} -c copy /tmp/filename-source.mp4"
+        ffmpeg_remux = execute_ffmpeg(cmd_remux, context)
+        
         # Replace placeholders in ffmpeg command
         cmd = ffmpeg_command
-        for key, path in local_inputs.items():
-            cmd = cmd.replace(f"{{{{{key}}}}}", path)
         for key, path in local_outputs.items():
             cmd = cmd.replace(f"{{{{{key}}}}}", path)
+        # Remove any remaining input_files placeholder since we use remuxed file
+        cmd = cmd.replace("{{input_files}}", "")
         
-        # Execute ffmpeg command
-        full_cmd = f"ffmpeg {cmd}"
-        print(f"Executing: {full_cmd}")
-        result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
-        
-        print(f"FFmpeg return code: {result.returncode}")
-        print(f"FFmpeg stdout: {result.stdout}")
-        if result.stderr:
-            print(f"FFmpeg stderr: {result.stderr}")
-        
-        if result.returncode != 0:
-            return {
-                'statusCode': 500,
-                'body': f'FFmpeg error: {result.stderr}'
-            }
+        # Second stage: use remuxed file as input for final processing
+        cmd_final = f"-i /tmp/filename-source.mp4 {cmd}"
+        ffmpeg_final = execute_ffmpeg(cmd_final, context)
         
         # Upload session folder to S3
         output_urls = {}
@@ -102,7 +119,7 @@ def lambda_handler(event, context):
                 'session_uuid': session_uuid,
                 'video_id': video_id,
                 'output_files': output_urls,
-                'ffmpeg_stdout': result.stdout
+                'ffmpeg_stdout': ffmpeg_final
             }
         }
         
