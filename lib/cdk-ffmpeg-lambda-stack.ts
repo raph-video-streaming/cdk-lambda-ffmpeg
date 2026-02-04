@@ -6,6 +6,7 @@ import { LambdaApi } from "./authorizer-apigateway";
 import { s3CloudFront } from "./s3-cloudfront";
 import { apiLambdaIntegation } from "./lambda-post-apigateway";
 import { stepFunctionWorker } from "./stepfunction-worker";
+import { S3EventLambda } from "./s3-event-lambda";
 
 export class CdkFFMpegLambdaStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -79,7 +80,7 @@ export class CdkFFMpegLambdaStack extends cdk.Stack {
     // Grant the Lambda function write permissions to the S3 bucket
     const ffmpegS3Policy = new iam.PolicyStatement({
       actions: ["s3:GetObject", "s3:PutObject", "s3:PutObjectAcl"],
-      resources: ["arn:aws:s3:::ffmpeg-cdk-lambda-s3cloudfront-${this.account}/*"], // You can scope it down to specific log groups if needed
+      resources: [S3BucketCloudFront.s3BucketOutput.arnForObjects("*")],
     });
     // Attach the policy to the Lambda function
     submiJobIntegration.functionOutput.addToRolePolicy(ffmpegS3Policy);
@@ -87,6 +88,38 @@ export class CdkFFMpegLambdaStack extends cdk.Stack {
     stepFunction.stepFunctionOutput.grantStartExecution(
       submiJobIntegration.functionOutput
     );
+
+    /*
+    //######  S3 EVENT LAMBDA FUNCTION #########
+    //Creating the S3 event Lambda function
+    const s3EventLambdaPath = join(
+      __dirname,
+      "lambda",
+      "ffmpeg-s3-events"
+    );
+
+    const s3EventLambda = new S3EventLambda(
+      this,
+      "S3EventLambda",
+      {
+        functionName: "ffmpeg-s3-events",
+        pythonFilePath: s3EventLambdaPath,
+        s3Bucket: S3BucketCloudFront.s3BucketOutput,
+        environment: {
+          CLOUDFRONT_HOSTNAME: "https://"+S3BucketCloudFront.cloudFrontOutput.domainName,
+          BUCKET_NAME: S3BucketCloudFront.s3BucketOutput.bucketName,
+          STEP_FUNCTION_ARN: stepFunction.stepFunctionOutput.stateMachineArn,
+        },
+        timeout: cdk.Duration.seconds(60),
+        memorySize: 512,
+      }
+    );
+
+    // Grant the S3 event Lambda function permissions to start the Step Function
+    stepFunction.stepFunctionOutput.grantStartExecution(
+      s3EventLambda.lambdaFunction
+    );
+    */
 
   }
 }

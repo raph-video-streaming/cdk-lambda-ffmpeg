@@ -13,6 +13,7 @@ The FFmpeg REST API uses a serverless architecture with the following components
   - FFmpeg execution with custom FFmpeg layer
   - Step Function job submission
   - Token authorization
+  - S3 event processing for automatic video processing
 - **Step Functions**: Orchestrates FFmpeg processing workflows
 - **S3 Bucket**: Stores input/output files with lifecycle policies
 - **CloudFront**: CDN for fast file delivery with Origin Access Control
@@ -64,7 +65,18 @@ The API is secured with a token-based authorizer. All requests must include an `
 }
 ```
 
-## Session Management
+## Automatic Processing
+
+### S3 Event-Driven Processing
+
+Files uploaded to the S3 bucket with the `import/` prefix automatically trigger FFmpeg processing:
+
+- **Trigger**: Object creation events in S3 with `import/` prefix
+- **Expected Path Structure**: `import/{video_id}/{filename}`
+- **Processing**: Automatic Step Function execution with predefined FFmpeg settings
+- **Output**: Processed files stored in `/ffmpeg/{video_id}/` with CloudFront URLs
+
+### Manual Processing via API
 
 Each FFmpeg job is assigned a unique UUID that:
 - Organizes files in S3 under `/ffmpeg/{uuid}/`

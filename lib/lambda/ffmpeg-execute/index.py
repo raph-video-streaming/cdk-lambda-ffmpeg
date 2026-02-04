@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 def execute_ffmpeg(cmd, context):
     # Function Execute ffmpeg command
-    full_cmd = f"ffmpeg {cmd}"
+    full_cmd = f"ffmpeg -y {cmd}"
     print(f"Executing: {full_cmd}")
     result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
     
@@ -72,8 +72,20 @@ def lambda_handler(event, context):
         local_inputs = {}
         for key, url in input_files.items():
             local_path = f"/tmp/{key}_{os.path.basename(urlparse(url).path)}"
-            print(f"Downloading {url} to {local_path}")
-            urllib.request.urlretrieve(url, local_path)
+            print(f"Processing {url} to {local_path}")
+            
+            if url.startswith('s3://'):
+                # Parse S3 URL
+                parsed_s3 = urlparse(url)
+                s3_bucket = parsed_s3.netloc
+                s3_key = parsed_s3.path.lstrip('/')
+                print(f"Downloading from S3: s3://{s3_bucket}/{s3_key}")
+                s3_client.download_file(s3_bucket, s3_key, local_path)
+            else:
+                # Download from HTTP/HTTPS URL
+                print(f"Downloading from URL: {url}")
+                urllib.request.urlretrieve(url, local_path)
+            
             local_inputs[key] = local_path
             print(f"Downloaded {key}: {local_path}")
         
@@ -86,9 +98,11 @@ def lambda_handler(event, context):
         first_input_path = list(local_inputs.values())[0]
         
         # First stage: remux input file
-        cmd_remux = f"-i {first_input_path} -c copy /tmp/filename-source.mp4"
+        tmp_remux_file = "/tmp/filename-source.mp4"
+        cmd_remux = f"-i {first_input_path} -c copy {tmp_remux_file}"
         ffmpeg_remux = execute_ffmpeg(cmd_remux, context)
         
+
         # Replace placeholders in ffmpeg command
         cmd = ffmpeg_command
         for key, path in local_outputs.items():
@@ -97,7 +111,8 @@ def lambda_handler(event, context):
         cmd = cmd.replace("{{input_files}}", "")
         
         # Second stage: use remuxed file as input for final processing
-        cmd_final = f"-i /tmp/filename-source.mp4 {cmd}"
+        cmd_final = f"-i {tmp_remux_file} {cmd}"
+        #cmd_final = f"-i {first_input_path} {cmd}"
         ffmpeg_final = execute_ffmpeg(cmd_final, context)
         
         # Upload session folder to S3
