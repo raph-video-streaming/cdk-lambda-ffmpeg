@@ -27,7 +27,7 @@ def lambda_handler(event, context):
     # Prepend UUID to input files
     input_file=s3_url
     output_url = f"{s3_hostname}/ffmpeg/{video_id}/{filename}.mp4"
-    ffmpeg_command='-vf "deband=range=16:1thr=0.02:2thr=0.02:3thr=0.02" -c:v libx264 -preset ultrafast -crf 30 -pix_fmt yuv420p -profile:v high -x264-params "psy-rd=1.0:0.15:aq-mode=3:aq-strength=1.0:ref=4:bframes=3" -s 1280x720 -c:a:0 aac -b:a:0 96k {{output_files}}'
+    ffmpeg_command='-vf "deband=range=16:1thr=0.02:2thr=0.02:3thr=0.02" -c:v libx264 -preset ultrafast -crf 30 -pix_fmt yuv420p -profile:v high -x264-params "psy-rd=1.0:0.15:aq-mode=3:aq-strength=1.0:ref=4:bframes=3" -c:a:0 aac -b:a:0 96k {{output_files}}'
     payload = {
         "input_files": input_file,
         "video_id": video_id,
